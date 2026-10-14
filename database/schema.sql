@@ -6,6 +6,8 @@ DROP DATABASE IF EXISTS turnos_db;
 CREATE DATABASE turnos_db;
 USE turnos_db;
 
+
+
 -- Último número entregado (una sola fila, como el dispensador de tiquetes)
 CREATE TABLE contador_turnos (
   id     TINYINT PRIMARY KEY,
@@ -37,3 +39,11 @@ CREATE TABLE historial_turnos (
   CONSTRAINT fk_historial_turno
     FOREIGN KEY (turno_id) REFERENCES turnos (id)
 );
+
+CREATE USER IF NOT EXISTS 'turnos_app'@'localhost' IDENTIFIED BY 'Turnos2026!';
+GRANT SELECT, INSERT, UPDATE, DELETE ON turnos_db.* TO 'turnos_app'@'localhost';
+FLUSH PRIVILEGES;
+-- -------------------
+-- DATOS PRUEBA 
+
+INSERT INTO turnos (numero, nombre, tramite) VALUES (1, 'Ana Mora', 'CAJA');
