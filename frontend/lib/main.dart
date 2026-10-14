@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
 void main() {
-  runApp(const TurnosApp());
+  runApp(const TicketsApp());
 }
 
-// La "app" completa: solo configura el tema y dice cuál es la pantalla inicial.
-class TurnosApp extends StatelessWidget {
-  const TurnosApp({super.key});
+// The whole app: only sets the theme and the initial screen.
+class TicketsApp extends StatelessWidget {
+  const TicketsApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -14,33 +14,40 @@ class TurnosApp extends StatelessWidget {
       title: 'Gestión de turnos',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(colorSchemeSeed: Colors.blue, useMaterial3: true),
-      home: const PantallaTurnos(),
+      home: const TicketsScreen(),
     );
   }
 }
 
-// StatefulWidget porque la pantalla "recuerda" cosas que cambian
-// (por ejemplo, qué trámite eligió la persona en la lista desplegable).
-class PantallaTurnos extends StatefulWidget {
-  const PantallaTurnos({super.key});
+// StatefulWidget because the screen "remembers" things that change
+// (for example, which procedure was selected in the dropdown).
+class TicketsScreen extends StatefulWidget {
+  const TicketsScreen({super.key});
 
   @override
-  State<PantallaTurnos> createState() => _PantallaTurnosState();
+  State<TicketsScreen> createState() => _TicketsScreenState();
 }
 
-class _PantallaTurnosState extends State<PantallaTurnos> {
-  final _nombreController = TextEditingController();
+class _TicketsScreenState extends State<TicketsScreen> {
+  final _nameController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  String _tramite = 'Caja';
+  String _procedure = 'CAJA';
 
-  // Datos inventados (la "maqueta"). Después se reemplazan por los reales.
-  final List<String> _pendientes = ['A-004 · Luis Rojas', 'A-005 · María Vega', 'A-006 · Pedro Solís'];
-  final List<String> _llamados = ['A-003 · Carlos Jiménez', 'A-002 · Laura Pérez'];
-  final List<String> _atendidos = ['A-001 · Ana Mora', 'A-000 · José Castro'];
+  // Value sent to the API -> text shown to the user.
+  static const _procedures = {
+    'CAJA': 'Caja',
+    'CONSULTA': 'Consulta',
+    'TRAMITES': 'Trámites',
+  };
+
+  // Fake data (the "mock-up"). Later replaced by real data from the API.
+  final List<String> _pending = ['A-004 · Luis Rojas', 'A-005 · María Vega', 'A-006 · Pedro Solís'];
+  final List<String> _called = ['A-003 · Carlos Jiménez', 'A-002 · Laura Pérez'];
+  final List<String> _attended = ['A-001 · Ana Mora', 'A-000 · José Castro'];
 
   @override
   void dispose() {
-    _nombreController.dispose();
+    _nameController.dispose();
     super.dispose();
   }
 
@@ -55,7 +62,7 @@ class _PantallaTurnosState extends State<PantallaTurnos> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // ---------- Formulario ----------
+            // ---------- Form ----------
             Form(
               key: _formKey,
               child: Row(
@@ -64,12 +71,12 @@ class _PantallaTurnosState extends State<PantallaTurnos> {
                   Expanded(
                     flex: 3,
                     child: TextFormField(
-                      controller: _nombreController,
+                      controller: _nameController,
                       decoration: const InputDecoration(
                         labelText: 'Nombre de la persona',
                         border: OutlineInputBorder(),
                       ),
-                      validator: (valor) => (valor == null || valor.trim().isEmpty)
+                      validator: (value) => (value == null || value.trim().isEmpty)
                           ? 'Escriba un nombre'
                           : null,
                     ),
@@ -78,22 +85,22 @@ class _PantallaTurnosState extends State<PantallaTurnos> {
                   Expanded(
                     flex: 2,
                     child: DropdownButtonFormField<String>(
-                      initialValue: _tramite,
+                      initialValue: _procedure,
                       decoration: const InputDecoration(
                         labelText: 'Trámite',
                         border: OutlineInputBorder(),
                       ),
-                      items: const ['Caja', 'Consulta', 'Trámites']
-                          .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                      items: _procedures.entries
+                          .map((p) => DropdownMenuItem(value: p.key, child: Text(p.value)))
                           .toList(),
-                      onChanged: (nuevo) {
-                        if (nuevo != null) setState(() => _tramite = nuevo);
+                      onChanged: (value) {
+                        if (value != null) setState(() => _procedure = value);
                       },
                     ),
                   ),
                   const SizedBox(width: 12),
                   SizedBox(
-                    height: 56, // misma altura que los campos
+                    height: 56, // same height as the fields
                     child: FilledButton(
                       onPressed: () {},
                       child: const Text('Registrar turno'),
@@ -104,7 +111,7 @@ class _PantallaTurnosState extends State<PantallaTurnos> {
             ),
             const SizedBox(height: 16),
 
-            // ---------- Botón grande ----------
+            // ---------- Big button ----------
             SizedBox(
               width: double.infinity,
               height: 64,
@@ -116,14 +123,14 @@ class _PantallaTurnosState extends State<PantallaTurnos> {
             ),
             const SizedBox(height: 16),
 
-            // ---------- Tres columnas ----------
+            // ---------- Three columns ----------
             Expanded(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(child: ColumnaTurnos(titulo: 'Pendientes', turnos: _pendientes)),
-                  Expanded(child: ColumnaTurnos(titulo: 'Llamados', turnos: _llamados)),
-                  Expanded(child: ColumnaTurnos(titulo: 'Atendidos', turnos: _atendidos)),
+                  Expanded(child: TicketColumn(title: 'Pendientes', tickets: _pending)),
+                  Expanded(child: TicketColumn(title: 'Llamados', tickets: _called)),
+                  Expanded(child: TicketColumn(title: 'Atendidos', tickets: _attended)),
                 ],
               ),
             ),
@@ -134,12 +141,12 @@ class _PantallaTurnosState extends State<PantallaTurnos> {
   }
 }
 
-// Un widget reutilizable: se escribe UNA vez y se usa tres veces.
-class ColumnaTurnos extends StatelessWidget {
-  final String titulo;
-  final List<String> turnos;
+// A reusable widget: written ONCE and used three times.
+class TicketColumn extends StatelessWidget {
+  final String title;
+  final List<String> tickets;
 
-  const ColumnaTurnos({super.key, required this.titulo, required this.turnos});
+  const TicketColumn({super.key, required this.title, required this.tickets});
 
   @override
   Widget build(BuildContext context) {
@@ -150,14 +157,14 @@ class ColumnaTurnos extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.all(12),
             child: Text(
-              '$titulo (${turnos.length})',
+              '$title (${tickets.length})',
               style: Theme.of(context).textTheme.titleMedium,
             ),
           ),
           const Divider(height: 1),
           Expanded(
             child: ListView(
-              children: turnos
+              children: tickets
                   .map((t) => ListTile(
                         leading: const Icon(Icons.confirmation_number_outlined),
                         title: Text(t),
