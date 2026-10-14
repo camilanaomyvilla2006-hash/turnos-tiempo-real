@@ -87,4 +87,13 @@ async function updateStatus({ id, currentStatus, currentVersion, newStatus, offi
     connection.release();
   }
 }
-module.exports = { findAll, findById, create, updateStatus };
+
+// The first PENDING ticket (the one with the lowest number).
+async function findFirstPending() {
+  const [rows] = await pool.query(
+    "SELECT * FROM turnos WHERE estado = 'PENDIENTE' ORDER BY numero LIMIT 1",
+  );
+  return rows[0] || null;
+}
+
+module.exports = { findAll, findById, findFirstPending, create, updateStatus };

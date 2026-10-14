@@ -18,4 +18,8 @@ async function changeStatus(req, res) {
   res.status(200).json(await service.changeStatus(req.params.id, req.body));
 }
 
-module.exports = { list, getById, create, changeStatus };
+async function callNext(req, res) {
+  res.status(200).json(await service.callNext(req.body));
+}
+
+module.exports = { list, getById, create, changeStatus, callNext };

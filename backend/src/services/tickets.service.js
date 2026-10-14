@@ -14,6 +14,9 @@ const TRANSITIONS = {
   ATENDIDO: [],
 };
 
+// How many times "call next" retries if another officer takes the same ticket.
+const CALL_NEXT_ATTEMPTS = 5;
+
 function validateText(value, field, min, max) {
   if (typeof value !== 'string' || value.trim().length < min || value.trim().length > max) {
     throw new AppError(400, 'VALIDATION_ERROR',
@@ -31,10 +34,12 @@ function validateId(id) {
 }
 
 async function list(status) {
-  if (status !== undefined && !STATUSES.has(status)) {
+  // Accept "pendiente", " Pendiente " or "PENDIENTE": normalize before validating.
+  const normalized = status === undefined ? undefined : String(status).trim().toUpperCase();
+  if (normalized !== undefined && !STATUSES.has(normalized)) {
     throw new AppError(400, 'VALIDATION_ERROR', 'El estado indicado no es válido');
   }
-  return repository.findAll(status);
+  return repository.findAll(normalized);
 }
 
 async function getById(id) {
@@ -62,12 +67,14 @@ async function changeStatus(id, data = {}) {
   const current = await repository.findById(ticketId);
   if (!current) throw new AppError(404, 'NOT_FOUND', 'El turno no existe');
 
+  // Defense 1: catches a request that arrives AFTER another one already saved.
   if (!TRANSITIONS[current.estado].includes(data.estado)) {
     throw new AppError(409, 'TRANSICION_INVALIDA',
       `No se puede pasar de ${current.estado} a ${data.estado}`);
   }
 
-   const updated = await repository.updateStatus({
+  // Defense 2: the conditional UPDATE catches requests that arrive AT THE SAME TIME.
+  const updated = await repository.updateStatus({
     id: ticketId,
     currentStatus: current.estado,
     currentVersion: current.version,
@@ -82,4 +89,31 @@ async function changeStatus(id, data = {}) {
   return updated;
 }
 
-module.exports = { list, getById, create, changeStatus };
+// Call the next available ticket. If two officers press the button at the same
+// time, both may read the same ticket, but the conditional UPDATE lets only one win.
+// The loser simply tries again with the next pending ticket.
+async function callNext(data = {}) {
+  const officer = validateText(data.funcionario, 'funcionario', 3, 60);
+
+  for (let attempt = 0; attempt < CALL_NEXT_ATTEMPTS; attempt += 1) {
+    const next = await repository.findFirstPending();
+    if (!next) {
+      throw new AppError(404, 'SIN_TURNOS', 'No hay turnos pendientes');
+    }
+
+    const updated = await repository.updateStatus({
+      id: next.id,
+      currentStatus: 'PENDIENTE',
+      currentVersion: next.version,
+      newStatus: 'LLAMADO',
+      officer,
+    });
+
+    if (updated) return updated;
+    // We lost the race for this ticket: loop again and take the next one.
+  }
+
+  throw new AppError(409, 'CONFLICTO_CONCURRENCIA', 'Hay mucha actividad en este momento. Intente de nuevo.');
+}
+
+module.exports = { list, getById, create, changeStatus, callNext };
