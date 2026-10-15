@@ -1,4 +1,4 @@
-   node_modules/
-   .dart_tool/
-   build/
-   .env
+node_modules/
+.dart_tool/
+build/
+.env
