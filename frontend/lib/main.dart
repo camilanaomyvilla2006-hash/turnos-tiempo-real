@@ -325,9 +325,29 @@ class TicketColumn extends StatelessWidget {
                   TicketStatus.atendido => null,
                 };
                 return ListTile(
-                  leading: const Icon(Icons.confirmation_number_outlined),
-                  title: Text('${t.code} · ${t.name}'),
-                  subtitle: Text(_detail(t)), // <- the line that changed
+                                                   // The ticket code looks like a printed ticket, in the column's color
+                  leading: Container(
+                    width: 76,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.12),
+                      border: Border.all(color: color, width: 1.5),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      t.code,
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color),
+                    ),
+                  ),
+                  title: Text(t.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Row(
+                    children: [
+                      Icon(procedureIcon(t.procedure), size: 14),
+                      const SizedBox(width: 4),
+                      Flexible(child: Text(_detail(t), overflow: TextOverflow.ellipsis)),
+                    ],
+                  ),
                   trailing: isBusy
                       ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                       : action,
