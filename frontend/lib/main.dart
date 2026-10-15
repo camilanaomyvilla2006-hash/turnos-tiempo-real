@@ -267,7 +267,7 @@ class TicketColumn extends StatelessWidget {
                 return ListTile(
                   leading: const Icon(Icons.confirmation_number_outlined),
                   title: Text('${t.code} · ${t.name}'),
-                  subtitle: Text(t.officer == null ? t.procedure : '${t.procedure} · ${t.officer}'),
+                  subtitle: Text(_detail(t)), // <- the line that changed
                   trailing: isBusy
                       ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                       : action,
@@ -278,6 +278,18 @@ class TicketColumn extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  // Text under each ticket: procedure, time and officer (the history with date and time).
+  String _detail(Ticket t) {
+    String time(DateTime? d) => d == null
+        ? '--:--'
+        : '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+    return switch (t.status) {
+      TicketStatus.pendiente => '${t.procedure} · registrado ${time(t.createdAt)}',
+      TicketStatus.llamado => '${t.procedure} · llamado ${time(t.calledAt)} por ${t.officer}',
+      TicketStatus.atendido => '${t.procedure} · atendido ${time(t.attendedAt)} por ${t.officer}',
+    };
   }
 }
 
