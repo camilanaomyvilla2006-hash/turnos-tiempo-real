@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'models/ticket.dart';
+
 void main() {
   runApp(const TicketsApp());
 }
@@ -40,10 +42,29 @@ class _TicketsScreenState extends State<TicketsScreen> {
     'TRAMITES': 'Trámites',
   };
 
-  // Fake data (the "mock-up"). Later replaced by real data from the API.
-  final List<String> _pending = ['A-004 · Luis Rojas', 'A-005 · María Vega', 'A-006 · Pedro Solís'];
-  final List<String> _called = ['A-003 · Carlos Jiménez', 'A-002 · Laura Pérez'];
-  final List<String> _attended = ['A-001 · Ana Mora', 'A-000 · José Castro'];
+  // Fake data shaped EXACTLY like the API JSON. Later it comes from the API.
+  final List<Ticket> _tickets = [
+    {'id': 1, 'numero': 1, 'nombre': 'Ana Mora', 'tramite': 'CAJA', 'estado': 'ATENDIDO',
+     'funcionario': 'Camila', 'creado_en': '2026-10-14T15:00:00Z',
+     'llamado_en': '2026-10-14T15:05:00Z', 'atendido_en': '2026-10-14T15:10:00Z'},
+    {'id': 2, 'numero': 2, 'nombre': 'Carlos Jiménez', 'tramite': 'CONSULTA', 'estado': 'LLAMADO',
+     'funcionario': 'Darlin', 'creado_en': '2026-10-14T15:02:00Z',
+     'llamado_en': '2026-10-14T15:12:00Z', 'atendido_en': null},
+    {'id': 3, 'numero': 3, 'nombre': 'Luis Rojas', 'tramite': 'CAJA', 'estado': 'PENDIENTE',
+     'funcionario': null, 'creado_en': '2026-10-14T15:04:00Z',
+     'llamado_en': null, 'atendido_en': null},
+    {'id': 4, 'numero': 4, 'nombre': 'María Vega', 'tramite': 'TRAMITES', 'estado': 'PENDIENTE',
+     'funcionario': null, 'creado_en': '2026-10-14T15:06:00Z',
+     'llamado_en': null, 'atendido_en': null},
+    {'id': 5, 'numero': 5, 'nombre': 'Pedro Solís', 'tramite': 'CONSULTA', 'estado': 'PENDIENTE',
+     'funcionario': null, 'creado_en': '2026-10-14T15:08:00Z',
+     'llamado_en': null, 'atendido_en': null},
+  ].map(Ticket.fromJson).toList();
+
+  // Tickets with a given status, ordered by number.
+  List<Ticket> _withStatus(TicketStatus status) =>
+      _tickets.where((t) => t.status == status).toList()
+        ..sort((a, b) => a.number.compareTo(b.number));
 
   @override
   void dispose() {
@@ -128,9 +149,9 @@ class _TicketsScreenState extends State<TicketsScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(child: TicketColumn(title: 'Pendientes', tickets: _pending)),
-                  Expanded(child: TicketColumn(title: 'Llamados', tickets: _called)),
-                  Expanded(child: TicketColumn(title: 'Atendidos', tickets: _attended)),
+                  Expanded(child: TicketColumn(title: 'Pendientes', tickets: _withStatus(TicketStatus.pendiente))),
+                  Expanded(child: TicketColumn(title: 'Llamados', tickets: _withStatus(TicketStatus.llamado))),
+                  Expanded(child: TicketColumn(title: 'Atendidos', tickets: _withStatus(TicketStatus.atendido))),
                 ],
               ),
             ),
@@ -144,7 +165,7 @@ class _TicketsScreenState extends State<TicketsScreen> {
 // A reusable widget: written ONCE and used three times.
 class TicketColumn extends StatelessWidget {
   final String title;
-  final List<String> tickets;
+  final List<Ticket> tickets;
 
   const TicketColumn({super.key, required this.title, required this.tickets});
 
@@ -167,7 +188,8 @@ class TicketColumn extends StatelessWidget {
               children: tickets
                   .map((t) => ListTile(
                         leading: const Icon(Icons.confirmation_number_outlined),
-                        title: Text(t),
+                        title: Text('${t.code} · ${t.name}'),
+                        subtitle: Text(t.officer == null ? t.procedure : '${t.procedure} · ${t.officer}'),
                       ))
                   .toList(),
             ),
