@@ -9,28 +9,32 @@ import 'state/tickets_state.dart';
 
 // ---------- Visual helpers: labels and icons shown to the user ----------
 // The API uses codes (CAJA, CONSULTA, TRAMITES); the user sees friendly names.
-const procedureLabels = {'CAJA': 'Caja', 'CONSULTA': 'Consulta', 'TRAMITES': 'Trámites'};
+const procedureLabels = {
+  'CAJA': 'Caja',
+  'CONSULTA': 'Consulta',
+  'TRAMITES': 'Trámites',
+};
 
 String procedureLabel(String code) => procedureLabels[code] ?? code;
 
 IconData procedureIcon(String code) => switch (code) {
-      'CAJA' => Icons.payments_outlined,
-      'CONSULTA' => Icons.support_agent_outlined,
-      _ => Icons.description_outlined,
-    };
+  'CAJA' => Icons.payments_outlined,
+  'CONSULTA' => Icons.support_agent_outlined,
+  _ => Icons.description_outlined,
+};
 
 // Each status has its own color and icon, so it is recognized at a glance.
 Color statusColor(TicketStatus status) => switch (status) {
-      TicketStatus.pendiente => const Color(0xFFC77700), // amber
-      TicketStatus.llamado => const Color(0xFF1E6FD9), // blue
-      TicketStatus.atendido => const Color(0xFF2E9D5B), // green
-    };
+  TicketStatus.pendiente => const Color(0xFFC77700), // amber
+  TicketStatus.llamado => const Color(0xFF1E6FD9), // blue
+  TicketStatus.atendido => const Color(0xFF2E9D5B), // green
+};
 
 IconData statusIcon(TicketStatus status) => switch (status) {
-      TicketStatus.pendiente => Icons.hourglass_top,
-      TicketStatus.llamado => Icons.campaign_outlined,
-      TicketStatus.atendido => Icons.check_circle_outline,
-    };
+  TicketStatus.pendiente => Icons.hourglass_top,
+  TicketStatus.llamado => Icons.campaign_outlined,
+  TicketStatus.atendido => Icons.check_circle_outline,
+};
 
 void main() {
   runApp(const TicketsApp());
@@ -83,10 +87,14 @@ class _TicketsScreenState extends State<TicketsScreen> {
       listener: (context, state) {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(
-            content: Text(state.message ?? ''),
-            backgroundColor: state.messageIsError ? Theme.of(context).colorScheme.error : null,
-          ));
+          ..showSnackBar(
+            SnackBar(
+              content: Text(state.message ?? ''),
+              backgroundColor: state.messageIsError
+                  ? Theme.of(context).colorScheme.error
+                  : null,
+            ),
+          );
       },
       child: BlocBuilder<TicketsCubit, TicketsState>(
         builder: (context, state) {
@@ -125,13 +133,21 @@ class _TicketsScreenState extends State<TicketsScreen> {
                                 width: double.infinity,
                                 height: 64,
                                 child: FilledButton.icon(
-                                  onPressed: state.officer != null &&
+                                  onPressed:
+                                      state.officer != null &&
                                           !state.callingNext &&
-                                          state.withStatus(TicketStatus.pendiente).isNotEmpty
+                                          state
+                                              .withStatus(
+                                                TicketStatus.pendiente,
+                                              )
+                                              .isNotEmpty
                                       ? cubit.callNext
                                       : null,
                                   icon: const Icon(Icons.campaign, size: 28),
-                                  label: const Text('Llamar siguiente', style: TextStyle(fontSize: 20)),
+                                  label: const Text(
+                                    'Llamar siguiente',
+                                    style: TextStyle(fontSize: 20),
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 16),
@@ -184,7 +200,6 @@ class _TicketFormState extends State<TicketForm> {
   String _procedure = 'CAJA';
   bool _sending = false;
 
-
   @override
   void dispose() {
     _nameController.dispose();
@@ -194,7 +209,10 @@ class _TicketFormState extends State<TicketForm> {
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _sending = true);
-    final ok = await context.read<TicketsCubit>().createTicket(_nameController.text.trim(), _procedure);
+    final ok = await context.read<TicketsCubit>().createTicket(
+      _nameController.text.trim(),
+      _procedure,
+    );
     if (!mounted) return;
     setState(() => _sending = false);
     if (ok) _nameController.clear();
@@ -211,7 +229,10 @@ class _TicketFormState extends State<TicketForm> {
             flex: 3,
             child: TextFormField(
               controller: _nameController,
-              decoration: const InputDecoration(labelText: 'Nombre de la persona', border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                labelText: 'Nombre de la persona',
+                border: OutlineInputBorder(),
+              ),
               onFieldSubmitted: (_) => _register(),
               validator: (value) {
                 final text = value?.trim() ?? '';
@@ -227,16 +248,23 @@ class _TicketFormState extends State<TicketForm> {
             flex: 2,
             child: DropdownButtonFormField<String>(
               initialValue: _procedure,
-              decoration: const InputDecoration(labelText: 'Trámite', border: OutlineInputBorder()),
-                           items: procedureLabels.entries
-                  .map((p) => DropdownMenuItem(
-                        value: p.key,
-                        child: Row(children: [
+              decoration: const InputDecoration(
+                labelText: 'Trámite',
+                border: OutlineInputBorder(),
+              ),
+              items: procedureLabels.entries
+                  .map(
+                    (p) => DropdownMenuItem(
+                      value: p.key,
+                      child: Row(
+                        children: [
                           Icon(procedureIcon(p.key), size: 18),
                           const SizedBox(width: 8),
                           Text(p.value),
-                        ]),
-                      ))
+                        ],
+                      ),
+                    ),
+                  )
                   .toList(),
               onChanged: (value) {
                 if (value != null) setState(() => _procedure = value);
@@ -269,20 +297,20 @@ class TicketColumn extends StatelessWidget {
   const TicketColumn({
     super.key,
     required this.title,
-      required this.status,
+    required this.status,
     required this.tickets,
     required this.busy,
     required this.onCall,
     required this.onAttend,
-      
   });
 
   @override
   Widget build(BuildContext context) {
-       final color = statusColor(status);
+    final color = statusColor(status);
     return Card(
       margin: const EdgeInsets.all(6),
-      clipBehavior: Clip.antiAlias, // the colored header follows the rounded corners
+      clipBehavior:
+          Clip.antiAlias, // the colored header follows the rounded corners
       child: Column(
         children: [
           Container(
@@ -298,77 +326,138 @@ class TicketColumn extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
                 ),
                 const Spacer(),
                 // Counter badge
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                  decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: Text(
                     '${tickets.length}',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
           Expanded(
-            child: ListView(
-              children: tickets.map((t) {
-                final isBusy = busy.contains(t.id);
-                final Widget? action = switch (t.status) {
-                  TicketStatus.pendiente =>
-                    OutlinedButton(onPressed: isBusy ? null : () => onCall(t), child: const Text('Llamar')),
-                  TicketStatus.llamado =>
-                    FilledButton(onPressed: isBusy ? null : () => onAttend(t), child: const Text('Atendido')),
-                  TicketStatus.atendido => null,
-                };
-                return ListTile(
-                                                   // The ticket code looks like a printed ticket, in the column's color
-                  leading: Container(
-                    width: 76,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.12),
-                      border: Border.all(color: color, width: 1.5),
-                      borderRadius: BorderRadius.circular(8),
+            child: tickets.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          statusIcon(status),
+                          size: 40,
+                          color: color.withValues(alpha: 0.35),
+                        ),
+                        const SizedBox(height: 8),
+
+                                                Text(
+                          _emptyText(),
+                          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        ),
+                      ],
                     ),
-                    child: Text(
-                      t.code,
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color),
-                    ),
+                  )
+                : ListView(
+                    children: tickets.map((t) {
+                      final isBusy = busy.contains(t.id);
+                      final Widget? action = switch (t.status) {
+                        TicketStatus.pendiente => OutlinedButton(
+                          onPressed: isBusy ? null : () => onCall(t),
+                          child: const Text('Llamar'),
+                        ),
+                        TicketStatus.llamado => FilledButton(
+                          onPressed: isBusy ? null : () => onAttend(t),
+                          child: const Text('Atendido'),
+                        ),
+                        TicketStatus.atendido => null,
+                      };
+                      return ListTile(
+                        // The ticket code looks like a printed ticket, in the column's color
+                        leading: Container(
+                          width: 76,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.12),
+                            border: Border.all(color: color, width: 1.5),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            t.code,
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: color,
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          t.name,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Row(
+                          children: [
+                            Icon(procedureIcon(t.procedure), size: 14),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                _detail(t),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        trailing: isBusy
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : action,
+                      );
+                    }).toList(),
                   ),
-                  title: Text(t.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Row(
-                    children: [
-                      Icon(procedureIcon(t.procedure), size: 14),
-                      const SizedBox(width: 4),
-                      Flexible(child: Text(_detail(t), overflow: TextOverflow.ellipsis)),
-                    ],
-                  ),
-                  trailing: isBusy
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                      : action,
-                );
-              }).toList(),
-            ),
           ),
         ],
       ),
     );
   }
 
+  // Message shown when the column has no tickets.
+  String _emptyText() => switch (status) {
+    TicketStatus.pendiente => 'No hay turnos pendientes',
+    TicketStatus.llamado => 'No hay turnos llamados',
+    TicketStatus.atendido => 'Aún no hay turnos atendidos',
+  };
+
   // Text under each ticket: procedure, time and officer (the history with date and time).
   String _detail(Ticket t) {
     String time(DateTime? d) => d == null
         ? '--:--'
         : '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
-        return switch (t.status) {
-      TicketStatus.pendiente => '${procedureLabel(t.procedure)} · registrado ${time(t.createdAt)}',
-      TicketStatus.llamado => '${procedureLabel(t.procedure)} · llamado ${time(t.calledAt)} por ${t.officer}',
-      TicketStatus.atendido => '${procedureLabel(t.procedure)} · atendido ${time(t.attendedAt)} por ${t.officer}',
+    return switch (t.status) {
+      TicketStatus.pendiente =>
+        '${procedureLabel(t.procedure)} · registrado ${time(t.createdAt)}',
+      TicketStatus.llamado =>
+        '${procedureLabel(t.procedure)} · llamado ${time(t.calledAt)} por ${t.officer}',
+      TicketStatus.atendido =>
+        '${procedureLabel(t.procedure)} · atendido ${time(t.attendedAt)} por ${t.officer}',
     };
   }
 }
@@ -382,19 +471,33 @@ class ConnectionBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final (text, icon, background) = switch (status) {
-      ConnectionStatus.connected => ('En tiempo real', Icons.wifi, colors.primaryContainer),
-      ConnectionStatus.connecting => ('Conectando…', Icons.sync, colors.surfaceContainerHighest),
+      ConnectionStatus.connected => (
+        'En tiempo real',
+        Icons.wifi,
+        colors.primaryContainer,
+      ),
+      ConnectionStatus.connecting => (
+        'Conectando…',
+        Icons.sync,
+        colors.surfaceContainerHighest,
+      ),
       ConnectionStatus.reconnecting => (
-          'Sin conexión en tiempo real. Reconectando… (los datos pueden estar desactualizados)',
-          Icons.wifi_off,
-          colors.errorContainer,
-        ),
+        'Sin conexión en tiempo real. Reconectando… (los datos pueden estar desactualizados)',
+        Icons.wifi_off,
+        colors.errorContainer,
+      ),
     };
     return Container(
       width: double.infinity,
       color: background,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Row(children: [Icon(icon, size: 16), const SizedBox(width: 8), Expanded(child: Text(text))]),
+      child: Row(
+        children: [
+          Icon(icon, size: 16),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text)),
+        ],
+      ),
     );
   }
 }
@@ -405,7 +508,8 @@ Future<String?> showOfficerDialog(BuildContext context, {String? current}) {
   final controller = TextEditingController(text: current);
 
   void accept(BuildContext ctx) {
-    if (formKey.currentState!.validate()) Navigator.of(ctx).pop(controller.text.trim());
+    if (formKey.currentState!.validate())
+      Navigator.of(ctx).pop(controller.text.trim());
   }
 
   return showDialog<String>(
@@ -418,7 +522,9 @@ Future<String?> showOfficerDialog(BuildContext context, {String? current}) {
         child: TextFormField(
           controller: controller,
           autofocus: true,
-          decoration: const InputDecoration(labelText: 'Nombre del funcionario'),
+          decoration: const InputDecoration(
+            labelText: 'Nombre del funcionario',
+          ),
           onFieldSubmitted: (_) => accept(ctx),
           validator: (value) {
             final text = value?.trim() ?? '';
@@ -429,8 +535,15 @@ Future<String?> showOfficerDialog(BuildContext context, {String? current}) {
         ),
       ),
       actions: [
-        if (current != null) TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancelar')),
-        FilledButton(onPressed: () => accept(ctx), child: const Text('Guardar')),
+        if (current != null)
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancelar'),
+          ),
+        FilledButton(
+          onPressed: () => accept(ctx),
+          child: const Text('Guardar'),
+        ),
       ],
     ),
   );
