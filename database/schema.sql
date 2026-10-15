@@ -1,12 +1,10 @@
 -- Sistema de gestión de turnos en tiempo real
--- Ejecutar completo en MySQL Workbench con el rayo.
+-- Ejecutar completo en MySQL Workbench (Ctrl + Shift + Enter).
 -- OJO: borra la base de datos si ya existe.
 
 DROP DATABASE IF EXISTS turnos_db;
 CREATE DATABASE turnos_db;
 USE turnos_db;
-
-
 
 -- Último número entregado (una sola fila, como el dispensador de tiquetes)
 CREATE TABLE contador_turnos (
@@ -23,11 +21,12 @@ CREATE TABLE turnos (
   tramite      ENUM('CAJA', 'CONSULTA', 'TRAMITES') NOT NULL,
   estado       ENUM('PENDIENTE', 'LLAMADO', 'ATENDIDO') NOT NULL DEFAULT 'PENDIENTE',
   funcionario  VARCHAR(60) NULL,
+  version      INT NOT NULL DEFAULT 1,      -- aumenta en cada cambio (control de concurrencia)
   creado_en    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   llamado_en   DATETIME NULL,
   atendido_en  DATETIME NULL
 );
-ALTER TABLE turnos ADD COLUMN version INT NOT NULL DEFAULT 1 AFTER funcionario;
+
 -- Bitácora de cambios de estado (un turno tiene muchos movimientos: 1 a N)
 CREATE TABLE historial_turnos (
   id               INT AUTO_INCREMENT PRIMARY KEY,
@@ -40,13 +39,12 @@ CREATE TABLE historial_turnos (
     FOREIGN KEY (turno_id) REFERENCES turnos (id)
 );
 
+-- Usuario propio para la API (mínimo privilegio: solo datos de turnos_db).
+-- La contraseña debe coincidir con la de backend/.env
 CREATE USER IF NOT EXISTS 'turnos_app'@'localhost' IDENTIFIED BY 'Turnos2026!';
 GRANT SELECT, INSERT, UPDATE, DELETE ON turnos_db.* TO 'turnos_app'@'localhost';
 FLUSH PRIVILEGES;
--- -------------------
--- DATOS PRUEBA 
-SELECT * FROM contador_turnos;
-DELETE FROM turnos WHERE id = 1;
-INSERT INTO turnos (numero, nombre, tramite) VALUES (1, 'Ana Mora', 'CAJA');
 
-SELECT * FROM historial_turnos ORDER BY id;
+-- Consultas útiles para revisar los datos:
+-- SELECT * FROM turnos ORDER BY numero;
+-- SELECT * FROM historial_turnos ORDER BY id;
