@@ -669,11 +669,11 @@ Future<String?> showOfficerDialog(BuildContext context, {String? current}) {
   final formKey = GlobalKey<FormState>();
   final controller = TextEditingController(text: current);
 
-  void accept(BuildContext ctx) {
-    if (formKey.currentState!.validate())
+ void accept(BuildContext ctx) {
+    if (formKey.currentState!.validate()) {
       Navigator.of(ctx).pop(controller.text.trim());
+    }
   }
-
   return showDialog<String>(
     context: context,
     barrierDismissible: current != null, // the first time it is mandatory
