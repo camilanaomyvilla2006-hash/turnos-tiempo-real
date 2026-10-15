@@ -48,7 +48,25 @@ class TicketsApp extends StatelessWidget {
     return MaterialApp(
       title: 'Gestión de turnos',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(colorSchemeSeed: Colors.blue, useMaterial3: true),
+      theme: ThemeData(
+        colorSchemeSeed: Colors.blue,
+        useMaterial3: true,
+        // Same rounded-rectangle shape for every button, matching the text fields
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        ),
+      ),
       // The Cubit is created once and is available to the whole screen.
       home: BlocProvider(
         create: (_) => TicketsCubit(ApiService(), SocketService())..start(),
@@ -109,12 +127,19 @@ class _TicketsScreenState extends State<TicketsScreen> {
               title: const Text('Gestión de turnos'),
               backgroundColor: Theme.of(context).colorScheme.inversePrimary,
               actions: [
-                TextButton.icon(
-                  icon: const Icon(Icons.badge_outlined),
-                  label: Text(state.officer ?? 'Sin funcionario'),
-                  onPressed: () => _askOfficer(current: state.officer),
+                // Who is working on this window; tap to change it
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: ActionChip(
+                    avatar: const Icon(Icons.badge_outlined, size: 18),
+                    label: Text(
+                      state.officer == null
+                          ? 'Sin funcionario'
+                          : 'Funcionario: ${state.officer}',
+                    ),
+                    onPressed: () => _askOfficer(current: state.officer),
+                  ),
                 ),
-                const SizedBox(width: 8),
               ],
             ),
             body: Column(
@@ -274,9 +299,10 @@ class _TicketFormState extends State<TicketForm> {
           const SizedBox(width: 12),
           SizedBox(
             height: 56,
-            child: FilledButton(
+            child: FilledButton.icon(
               onPressed: _sending ? null : _register,
-              child: Text(_sending ? 'Registrando…' : 'Registrar turno'),
+              icon: const Icon(Icons.add),
+              label: Text(_sending ? 'Registrando…' : 'Registrar turno'),
             ),
           ),
         ],
@@ -364,9 +390,13 @@ class TicketColumn extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
 
-                                                Text(
+                        Text(
                           _emptyText(),
-                          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                          style: TextStyle(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
