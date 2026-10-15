@@ -12,6 +12,7 @@ class Ticket {
   final DateTime createdAt;
   final DateTime? calledAt;
   final DateTime? attendedAt;
+  final int version;          // increases on every change: used to ignore old events
 
   const Ticket({
     required this.id,
@@ -23,6 +24,7 @@ class Ticket {
     this.officer,
     this.calledAt,
     this.attendedAt,
+    required this.version,
   });
 
   /// Deserialize: JSON from the API -> Ticket object.
@@ -41,6 +43,7 @@ class Ticket {
       createdAt: date(json['creado_en'])!,
       calledAt: date(json['llamado_en']),
       attendedAt: date(json['atendido_en']),
+      version: json['version'] as int,
     );
   }
 
@@ -55,6 +58,7 @@ class Ticket {
         'creado_en': createdAt.toUtc().toIso8601String(),
         'llamado_en': calledAt?.toUtc().toIso8601String(),
         'atendido_en': attendedAt?.toUtc().toIso8601String(),
+        'version': version,
       };
 
   /// Display code: 7 -> "A-007"

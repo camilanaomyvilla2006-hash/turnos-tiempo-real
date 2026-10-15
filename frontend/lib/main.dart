@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'models/ticket.dart';
+import 'services/api_service.dart';
+import 'services/socket_service.dart';
+import 'state/tickets_cubit.dart';
+import 'state/tickets_state.dart';
 
 void main() {
   runApp(const TicketsApp());
 }
 
-// The whole app: only sets the theme and the initial screen.
 class TicketsApp extends StatelessWidget {
   const TicketsApp({super.key});
 
@@ -16,13 +20,17 @@ class TicketsApp extends StatelessWidget {
       title: 'Gestión de turnos',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(colorSchemeSeed: Colors.blue, useMaterial3: true),
-      home: const TicketsScreen(),
+      // The Cubit is created once and is available to the whole screen.
+      home: BlocProvider(
+        create: (_) => TicketsCubit(ApiService(), SocketService())..start(),
+        child: const TicketsScreen(),
+      ),
     );
   }
 }
 
-// StatefulWidget because the screen "remembers" things that change
-// (for example, which procedure was selected in the dropdown).
+// The screen only SHOWS the state and tells the Cubit what the user did.
+// It has no business rules and no HTTP calls.
 class TicketsScreen extends StatefulWidget {
   const TicketsScreen({super.key});
 
@@ -31,40 +39,126 @@ class TicketsScreen extends StatefulWidget {
 }
 
 class _TicketsScreenState extends State<TicketsScreen> {
+  bool _askingOfficer = false;
+
+  Future<void> _askOfficer({String? current}) async {
+    if (_askingOfficer) return;
+    _askingOfficer = true;
+    final cubit = context.read<TicketsCubit>();
+    final name = await showOfficerDialog(context, current: current);
+    if (name != null) cubit.setOfficer(name);
+    _askingOfficer = false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocListener<TicketsCubit, TicketsState>(
+      // Show a SnackBar only when a NEW message arrives.
+      listenWhen: (before, now) => before.messageId != now.messageId,
+      listener: (context, state) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(
+            content: Text(state.message ?? ''),
+            backgroundColor: state.messageIsError ? Theme.of(context).colorScheme.error : null,
+          ));
+      },
+      child: BlocBuilder<TicketsCubit, TicketsState>(
+        builder: (context, state) {
+          // Ask for the officer's name the first time.
+          if (!state.loading && state.officer == null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) => _askOfficer());
+          }
+          final cubit = context.read<TicketsCubit>();
+
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('Gestión de turnos'),
+              backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+              actions: [
+                TextButton.icon(
+                  icon: const Icon(Icons.badge_outlined),
+                  label: Text(state.officer ?? 'Sin funcionario'),
+                  onPressed: () => _askOfficer(current: state.officer),
+                ),
+                const SizedBox(width: 8),
+              ],
+            ),
+            body: Column(
+              children: [
+                ConnectionBanner(status: state.connection),
+                Expanded(
+                  child: state.loading
+                      ? const Center(child: CircularProgressIndicator())
+                      : Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            children: [
+                              const TicketForm(),
+                              const SizedBox(height: 16),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 64,
+                                child: FilledButton.icon(
+                                  onPressed: state.officer != null &&
+                                          !state.callingNext &&
+                                          state.withStatus(TicketStatus.pendiente).isNotEmpty
+                                      ? cubit.callNext
+                                      : null,
+                                  icon: const Icon(Icons.campaign, size: 28),
+                                  label: const Text('Llamar siguiente', style: TextStyle(fontSize: 20)),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Expanded(
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    for (final (status, title) in [
+                                      (TicketStatus.pendiente, 'Pendientes'),
+                                      (TicketStatus.llamado, 'Llamados'),
+                                      (TicketStatus.atendido, 'Atendidos'),
+                                    ])
+                                      Expanded(
+                                        child: TicketColumn(
+                                          title: title,
+                                          tickets: state.withStatus(status),
+                                          busy: state.busy,
+                                          onCall: cubit.call,
+                                          onAttend: cubit.attend,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ---------- Form to register a ticket (validations for the user's comfort) ----------
+class TicketForm extends StatefulWidget {
+  const TicketForm({super.key});
+
+  @override
+  State<TicketForm> createState() => _TicketFormState();
+}
+
+class _TicketFormState extends State<TicketForm> {
   final _nameController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   String _procedure = 'CAJA';
+  bool _sending = false;
 
-  // Value sent to the API -> text shown to the user.
-  static const _procedures = {
-    'CAJA': 'Caja',
-    'CONSULTA': 'Consulta',
-    'TRAMITES': 'Trámites',
-  };
-
-  // Fake data shaped EXACTLY like the API JSON. Later it comes from the API.
-  final List<Ticket> _tickets = [
-    {'id': 1, 'numero': 1, 'nombre': 'Ana Mora', 'tramite': 'CAJA', 'estado': 'ATENDIDO',
-     'funcionario': 'Camila', 'creado_en': '2026-10-14T15:00:00Z',
-     'llamado_en': '2026-10-14T15:05:00Z', 'atendido_en': '2026-10-14T15:10:00Z'},
-    {'id': 2, 'numero': 2, 'nombre': 'Carlos Jiménez', 'tramite': 'CONSULTA', 'estado': 'LLAMADO',
-     'funcionario': 'Darlin', 'creado_en': '2026-10-14T15:02:00Z',
-     'llamado_en': '2026-10-14T15:12:00Z', 'atendido_en': null},
-    {'id': 3, 'numero': 3, 'nombre': 'Luis Rojas', 'tramite': 'CAJA', 'estado': 'PENDIENTE',
-     'funcionario': null, 'creado_en': '2026-10-14T15:04:00Z',
-     'llamado_en': null, 'atendido_en': null},
-    {'id': 4, 'numero': 4, 'nombre': 'María Vega', 'tramite': 'TRAMITES', 'estado': 'PENDIENTE',
-     'funcionario': null, 'creado_en': '2026-10-14T15:06:00Z',
-     'llamado_en': null, 'atendido_en': null},
-    {'id': 5, 'numero': 5, 'nombre': 'Pedro Solís', 'tramite': 'CONSULTA', 'estado': 'PENDIENTE',
-     'funcionario': null, 'creado_en': '2026-10-14T15:08:00Z',
-     'llamado_en': null, 'atendido_en': null},
-  ].map(Ticket.fromJson).toList();
-
-  // Tickets with a given status, ordered by number.
-  List<Ticket> _withStatus(TicketStatus status) =>
-      _tickets.where((t) => t.status == status).toList()
-        ..sort((a, b) => a.number.compareTo(b.number));
+  static const _procedures = {'CAJA': 'Caja', 'CONSULTA': 'Consulta', 'TRAMITES': 'Trámites'};
 
   @override
   void dispose() {
@@ -72,102 +166,81 @@ class _TicketsScreenState extends State<TicketsScreen> {
     super.dispose();
   }
 
+  Future<void> _register() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _sending = true);
+    final ok = await context.read<TicketsCubit>().createTicket(_nameController.text.trim(), _procedure);
+    if (!mounted) return;
+    setState(() => _sending = false);
+    if (ok) _nameController.clear();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Gestión de turnos'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // ---------- Form ----------
-            Form(
-              key: _formKey,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: TextFormField(
-                      controller: _nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Nombre de la persona',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (value) => (value == null || value.trim().isEmpty)
-                          ? 'Escriba un nombre'
-                          : null,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: DropdownButtonFormField<String>(
-                      initialValue: _procedure,
-                      decoration: const InputDecoration(
-                        labelText: 'Trámite',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: _procedures.entries
-                          .map((p) => DropdownMenuItem(value: p.key, child: Text(p.value)))
-                          .toList(),
-                      onChanged: (value) {
-                        if (value != null) setState(() => _procedure = value);
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  SizedBox(
-                    height: 56, // same height as the fields
-                    child: FilledButton(
-                      onPressed: () {},
-                      child: const Text('Registrar turno'),
-                    ),
-                  ),
-                ],
-              ),
+    return Form(
+      key: _formKey,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 3,
+            child: TextFormField(
+              controller: _nameController,
+              decoration: const InputDecoration(labelText: 'Nombre de la persona', border: OutlineInputBorder()),
+              onFieldSubmitted: (_) => _register(),
+              validator: (value) {
+                final text = value?.trim() ?? '';
+                if (text.isEmpty) return 'Escriba un nombre';
+                if (text.length < 3) return 'Mínimo 3 caracteres';
+                if (text.length > 80) return 'Máximo 80 caracteres';
+                return null;
+              },
             ),
-            const SizedBox(height: 16),
-
-            // ---------- Big button ----------
-            SizedBox(
-              width: double.infinity,
-              height: 64,
-              child: FilledButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.campaign, size: 28),
-                label: const Text('Llamar siguiente', style: TextStyle(fontSize: 20)),
-              ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 2,
+            child: DropdownButtonFormField<String>(
+              initialValue: _procedure,
+              decoration: const InputDecoration(labelText: 'Trámite', border: OutlineInputBorder()),
+              items: _procedures.entries
+                  .map((p) => DropdownMenuItem(value: p.key, child: Text(p.value)))
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) setState(() => _procedure = value);
+              },
             ),
-            const SizedBox(height: 16),
-
-            // ---------- Three columns ----------
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: TicketColumn(title: 'Pendientes', tickets: _withStatus(TicketStatus.pendiente))),
-                  Expanded(child: TicketColumn(title: 'Llamados', tickets: _withStatus(TicketStatus.llamado))),
-                  Expanded(child: TicketColumn(title: 'Atendidos', tickets: _withStatus(TicketStatus.atendido))),
-                ],
-              ),
+          ),
+          const SizedBox(width: 12),
+          SizedBox(
+            height: 56,
+            child: FilledButton(
+              onPressed: _sending ? null : _register,
+              child: Text(_sending ? 'Registrando…' : 'Registrar turno'),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-// A reusable widget: written ONCE and used three times.
+// ---------- One column (Pendientes, Llamados or Atendidos) ----------
 class TicketColumn extends StatelessWidget {
   final String title;
   final List<Ticket> tickets;
+  final Set<int> busy;
+  final void Function(Ticket) onCall;
+  final void Function(Ticket) onAttend;
 
-  const TicketColumn({super.key, required this.title, required this.tickets});
+  const TicketColumn({
+    super.key,
+    required this.title,
+    required this.tickets,
+    required this.busy,
+    required this.onCall,
+    required this.onAttend,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -177,25 +250,96 @@ class TicketColumn extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.all(12),
-            child: Text(
-              '$title (${tickets.length})',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+            child: Text('$title (${tickets.length})', style: Theme.of(context).textTheme.titleMedium),
           ),
           const Divider(height: 1),
           Expanded(
             child: ListView(
-              children: tickets
-                  .map((t) => ListTile(
-                        leading: const Icon(Icons.confirmation_number_outlined),
-                        title: Text('${t.code} · ${t.name}'),
-                        subtitle: Text(t.officer == null ? t.procedure : '${t.procedure} · ${t.officer}'),
-                      ))
-                  .toList(),
+              children: tickets.map((t) {
+                final isBusy = busy.contains(t.id);
+                final Widget? action = switch (t.status) {
+                  TicketStatus.pendiente =>
+                    OutlinedButton(onPressed: isBusy ? null : () => onCall(t), child: const Text('Llamar')),
+                  TicketStatus.llamado =>
+                    FilledButton(onPressed: isBusy ? null : () => onAttend(t), child: const Text('Atendido')),
+                  TicketStatus.atendido => null,
+                };
+                return ListTile(
+                  leading: const Icon(Icons.confirmation_number_outlined),
+                  title: Text('${t.code} · ${t.name}'),
+                  subtitle: Text(t.officer == null ? t.procedure : '${t.procedure} · ${t.officer}'),
+                  trailing: isBusy
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                      : action,
+                );
+              }).toList(),
             ),
           ),
         ],
       ),
     );
   }
+}
+
+// ---------- Bar that shows the real-time connection status ----------
+class ConnectionBanner extends StatelessWidget {
+  final ConnectionStatus status;
+  const ConnectionBanner({super.key, required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final (text, icon, background) = switch (status) {
+      ConnectionStatus.connected => ('En tiempo real', Icons.wifi, colors.primaryContainer),
+      ConnectionStatus.connecting => ('Conectando…', Icons.sync, colors.surfaceContainerHighest),
+      ConnectionStatus.reconnecting => (
+          'Sin conexión en tiempo real. Reconectando… (los datos pueden estar desactualizados)',
+          Icons.wifi_off,
+          colors.errorContainer,
+        ),
+    };
+    return Container(
+      width: double.infinity,
+      color: background,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Row(children: [Icon(icon, size: 16), const SizedBox(width: 8), Expanded(child: Text(text))]),
+    );
+  }
+}
+
+// ---------- Dialog to type the officer's name ----------
+Future<String?> showOfficerDialog(BuildContext context, {String? current}) {
+  final formKey = GlobalKey<FormState>();
+  final controller = TextEditingController(text: current);
+
+  void accept(BuildContext ctx) {
+    if (formKey.currentState!.validate()) Navigator.of(ctx).pop(controller.text.trim());
+  }
+
+  return showDialog<String>(
+    context: context,
+    barrierDismissible: current != null, // the first time it is mandatory
+    builder: (ctx) => AlertDialog(
+      title: const Text('¿Quién atiende?'),
+      content: Form(
+        key: formKey,
+        child: TextFormField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Nombre del funcionario'),
+          onFieldSubmitted: (_) => accept(ctx),
+          validator: (value) {
+            final text = value?.trim() ?? '';
+            if (text.length < 3) return 'Mínimo 3 caracteres';
+            if (text.length > 60) return 'Máximo 60 caracteres';
+            return null;
+          },
+        ),
+      ),
+      actions: [
+        if (current != null) TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancelar')),
+        FilledButton(onPressed: () => accept(ctx), child: const Text('Guardar')),
+      ],
+    ),
+  );
 }
