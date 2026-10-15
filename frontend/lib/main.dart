@@ -97,6 +97,20 @@ class _TicketsScreenState extends State<TicketsScreen> {
     _askingOfficer = false;
   }
 
+  // The latest ticket that THIS officer called and has not attended yet.
+  Ticket? _currentTicket(TicketsState state) {
+    final mine = state
+        .withStatus(TicketStatus.llamado)
+        .where((t) => t.officer == state.officer)
+        .toList();
+    if (mine.isEmpty) return null;
+    mine.sort(
+      (a, b) =>
+          (b.calledAt ?? b.createdAt).compareTo(a.calledAt ?? a.createdAt),
+    );
+    return mine.first;
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocListener<TicketsCubit, TicketsState>(
@@ -155,24 +169,62 @@ class _TicketsScreenState extends State<TicketsScreen> {
                               const TicketForm(),
                               const SizedBox(height: 16),
                               SizedBox(
-                                width: double.infinity,
-                                height: 64,
-                                child: FilledButton.icon(
-                                  onPressed:
-                                      state.officer != null &&
-                                          !state.callingNext &&
-                                          state
-                                              .withStatus(
-                                                TicketStatus.pendiente,
+                                height: 110,
+                                child: Row(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Expanded(
+                                      flex: 3,
+                                      child: CurrentTicketPanel(
+                                        ticket: _currentTicket(state),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      flex: 2,
+                                      child: FilledButton.icon(
+                                        onPressed:
+                                            state.officer != null &&
+                                                !state.callingNext &&
+                                                state
+                                                    .withStatus(
+                                                      TicketStatus.pendiente,
+                                                    )
+                                                    .isNotEmpty
+                                            ? cubit.callNext
+                                            : null,
+                                        icon: state.callingNext
+                                            ? const SizedBox(
+                                                width: 24,
+                                                height: 24,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                    ),
                                               )
-                                              .isNotEmpty
-                                      ? cubit.callNext
-                                      : null,
-                                  icon: const Icon(Icons.campaign, size: 28),
-                                  label: const Text(
-                                    'Llamar siguiente',
-                                    style: TextStyle(fontSize: 20),
-                                  ),
+                                            : const Icon(
+                                                Icons.campaign,
+                                                size: 32,
+                                              ),
+                                        label: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Text(
+                                              'Llamar siguiente',
+                                              style: TextStyle(fontSize: 20),
+                                            ),
+                                            Text(
+                                              '${state.withStatus(TicketStatus.pendiente).length} en espera',
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                               const SizedBox(height: 16),
@@ -207,6 +259,86 @@ class _TicketsScreenState extends State<TicketsScreen> {
           );
         },
       ),
+    );
+  }
+}
+
+// ---------- Big panel with the ticket this officer is attending ----------
+class CurrentTicketPanel extends StatelessWidget {
+  final Ticket? ticket;
+  const CurrentTicketPanel({super.key, required this.ticket});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = statusColor(TicketStatus.llamado);
+    final t = ticket;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: t == null
+          // Nobody is being attended by this officer
+          ? Row(
+              children: [
+                Icon(
+                  Icons.event_seat_outlined,
+                  size: 36,
+                  color: color.withValues(alpha: 0.5),
+                ),
+                const SizedBox(width: 16),
+                const Expanded(
+                  child: Text(
+                    'No está atendiendo a nadie. Presione "Llamar siguiente".',
+                  ),
+                ),
+              ],
+            )
+          // The current ticket, big, like the screens in a bank
+          : Row(
+              children: [
+                Text(
+                  t.code,
+                  style: TextStyle(
+                    fontSize: 44,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'ATENDIENDO AHORA',
+                        style: TextStyle(
+                          fontSize: 12,
+                          letterSpacing: 1.2,
+                          fontWeight: FontWeight.w600,
+                          color: color,
+                        ),
+                      ),
+                      Text(
+                        t.name,
+                        style: Theme.of(context).textTheme.titleLarge,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Row(
+                        children: [
+                          Icon(procedureIcon(t.procedure), size: 16),
+                          const SizedBox(width: 4),
+                          Text(procedureLabel(t.procedure)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }
