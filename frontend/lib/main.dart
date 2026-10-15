@@ -7,6 +7,31 @@ import 'services/socket_service.dart';
 import 'state/tickets_cubit.dart';
 import 'state/tickets_state.dart';
 
+// ---------- Visual helpers: labels and icons shown to the user ----------
+// The API uses codes (CAJA, CONSULTA, TRAMITES); the user sees friendly names.
+const procedureLabels = {'CAJA': 'Caja', 'CONSULTA': 'Consulta', 'TRAMITES': 'Trámites'};
+
+String procedureLabel(String code) => procedureLabels[code] ?? code;
+
+IconData procedureIcon(String code) => switch (code) {
+      'CAJA' => Icons.payments_outlined,
+      'CONSULTA' => Icons.support_agent_outlined,
+      _ => Icons.description_outlined,
+    };
+
+// Each status has its own color and icon, so it is recognized at a glance.
+Color statusColor(TicketStatus status) => switch (status) {
+      TicketStatus.pendiente => const Color(0xFFC77700), // amber
+      TicketStatus.llamado => const Color(0xFF1E6FD9), // blue
+      TicketStatus.atendido => const Color(0xFF2E9D5B), // green
+    };
+
+IconData statusIcon(TicketStatus status) => switch (status) {
+      TicketStatus.pendiente => Icons.hourglass_top,
+      TicketStatus.llamado => Icons.campaign_outlined,
+      TicketStatus.atendido => Icons.check_circle_outline,
+    };
+
 void main() {
   runApp(const TicketsApp());
 }
@@ -122,6 +147,7 @@ class _TicketsScreenState extends State<TicketsScreen> {
                                       Expanded(
                                         child: TicketColumn(
                                           title: title,
+                                          status: status,
                                           tickets: state.withStatus(status),
                                           busy: state.busy,
                                           onCall: cubit.call,
@@ -158,7 +184,6 @@ class _TicketFormState extends State<TicketForm> {
   String _procedure = 'CAJA';
   bool _sending = false;
 
-  static const _procedures = {'CAJA': 'Caja', 'CONSULTA': 'Consulta', 'TRAMITES': 'Trámites'};
 
   @override
   void dispose() {
@@ -203,8 +228,15 @@ class _TicketFormState extends State<TicketForm> {
             child: DropdownButtonFormField<String>(
               initialValue: _procedure,
               decoration: const InputDecoration(labelText: 'Trámite', border: OutlineInputBorder()),
-              items: _procedures.entries
-                  .map((p) => DropdownMenuItem(value: p.key, child: Text(p.value)))
+                           items: procedureLabels.entries
+                  .map((p) => DropdownMenuItem(
+                        value: p.key,
+                        child: Row(children: [
+                          Icon(procedureIcon(p.key), size: 18),
+                          const SizedBox(width: 8),
+                          Text(p.value),
+                        ]),
+                      ))
                   .toList(),
               onChanged: (value) {
                 if (value != null) setState(() => _procedure = value);
@@ -228,6 +260,7 @@ class _TicketFormState extends State<TicketForm> {
 // ---------- One column (Pendientes, Llamados or Atendidos) ----------
 class TicketColumn extends StatelessWidget {
   final String title;
+  final TicketStatus status;
   final List<Ticket> tickets;
   final Set<int> busy;
   final void Function(Ticket) onCall;
@@ -236,23 +269,50 @@ class TicketColumn extends StatelessWidget {
   const TicketColumn({
     super.key,
     required this.title,
+      required this.status,
     required this.tickets,
     required this.busy,
     required this.onCall,
     required this.onAttend,
+      
   });
 
   @override
   Widget build(BuildContext context) {
+       final color = statusColor(status);
     return Card(
       margin: const EdgeInsets.all(6),
+      clipBehavior: Clip.antiAlias, // the colored header follows the rounded corners
       child: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Text('$title (${tickets.length})', style: Theme.of(context).textTheme.titleMedium),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              border: Border(bottom: BorderSide(color: color, width: 3)),
+            ),
+            child: Row(
+              children: [
+                Icon(statusIcon(status), color: color),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const Spacer(),
+                // Counter badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                  decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12)),
+                  child: Text(
+                    '${tickets.length}',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
           ),
-          const Divider(height: 1),
           Expanded(
             child: ListView(
               children: tickets.map((t) {
@@ -285,10 +345,10 @@ class TicketColumn extends StatelessWidget {
     String time(DateTime? d) => d == null
         ? '--:--'
         : '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
-    return switch (t.status) {
-      TicketStatus.pendiente => '${t.procedure} · registrado ${time(t.createdAt)}',
-      TicketStatus.llamado => '${t.procedure} · llamado ${time(t.calledAt)} por ${t.officer}',
-      TicketStatus.atendido => '${t.procedure} · atendido ${time(t.attendedAt)} por ${t.officer}',
+        return switch (t.status) {
+      TicketStatus.pendiente => '${procedureLabel(t.procedure)} · registrado ${time(t.createdAt)}',
+      TicketStatus.llamado => '${procedureLabel(t.procedure)} · llamado ${time(t.calledAt)} por ${t.officer}',
+      TicketStatus.atendido => '${procedureLabel(t.procedure)} · atendido ${time(t.attendedAt)} por ${t.officer}',
     };
   }
 }
