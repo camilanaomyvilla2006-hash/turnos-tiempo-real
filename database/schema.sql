@@ -27,7 +27,7 @@ CREATE TABLE turnos (
   llamado_en   DATETIME NULL,
   atendido_en  DATETIME NULL
 );
-
+ALTER TABLE turnos ADD COLUMN version INT NOT NULL DEFAULT 1 AFTER funcionario;
 -- Bitácora de cambios de estado (un turno tiene muchos movimientos: 1 a N)
 CREATE TABLE historial_turnos (
   id               INT AUTO_INCREMENT PRIMARY KEY,
@@ -45,5 +45,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON turnos_db.* TO 'turnos_app'@'localhost';
 FLUSH PRIVILEGES;
 -- -------------------
 -- DATOS PRUEBA 
-
+SELECT * FROM contador_turnos;
+DELETE FROM turnos WHERE id = 1;
 INSERT INTO turnos (numero, nombre, tramite) VALUES (1, 'Ana Mora', 'CAJA');
+
+SELECT * FROM historial_turnos ORDER BY id;

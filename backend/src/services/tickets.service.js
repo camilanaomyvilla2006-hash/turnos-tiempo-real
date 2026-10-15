@@ -2,6 +2,8 @@
 // It knows nothing about HTTP or SQL: it only asks the repository for data.
 const AppError = require('../utils/AppError');
 const repository = require('../repositories/tickets.repository');
+const realtime = require('../websocket/socket');
+
 
 // Sets of allowed values: validating is asking "is it in the set or not?".
 const PROCEDURES = new Set(['CAJA', 'CONSULTA', 'TRAMITES']);
@@ -54,7 +56,9 @@ async function create(data = {}) {
   if (!PROCEDURES.has(data.tramite)) {
     throw new AppError(400, 'VALIDATION_ERROR', 'El trámite debe ser CAJA, CONSULTA o TRAMITES');
   }
-  return repository.create({ name, procedure: data.tramite });
+    const ticket = await repository.create({ name, procedure: data.tramite });
+  realtime.broadcast('TURNO_CREADO', ticket); // notify every connected browser
+  return ticket;
 }
 
 async function changeStatus(id, data = {}) {
@@ -86,6 +90,7 @@ async function changeStatus(id, data = {}) {
     throw new AppError(409, 'CONFLICTO_CONCURRENCIA',
       'Otro funcionario modificó este turno al mismo tiempo. Intente de nuevo.');
   }
+    realtime.broadcast('TURNO_ACTUALIZADO', updated);
   return updated;
 }
 
@@ -109,8 +114,10 @@ async function callNext(data = {}) {
       officer,
     });
 
-    if (updated) return updated;
-    // We lost the race for this ticket: loop again and take the next one.
+        if (updated) {
+      realtime.broadcast('TURNO_ACTUALIZADO', updated);
+      return updated;
+    }
   }
 
   throw new AppError(409, 'CONFLICTO_CONCURRENCIA', 'Hay mucha actividad en este momento. Intente de nuevo.');
